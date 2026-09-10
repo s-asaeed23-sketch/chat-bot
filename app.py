@@ -1,10 +1,7 @@
-import gradio as gr
-import os
+import streamlit as st
 import random
 
-# ---------------------------------------------------------
-# منطق تحديد المرحلة اللي المستخدم وصلها في المحادثة
-# ---------------------------------------------------------
+st.set_page_config(page_title="بوت جدول تعلم الإنجليزية", page_icon="🎓")
 
 LEVELS = ["مبتدئ", "متوسط", "متقدم"]
 FOCUS_OPTIONS = ["مفردات", "قواعد", "محادثة", "استماع", "كل حاجة"]
@@ -20,15 +17,14 @@ GRAMMAR_TOPICS = [
     "Comparatives & Superlatives", "Conditionals (If)",
 ]
 
+
 def build_schedule(level: str, hours: str, focus: str) -> str:
-    """بيبني جدول تعلم لمدة 30 يوم على حسب اختيارات المستخدم"""
     try:
         hours_num = float(hours)
     except ValueError:
         hours_num = 1.0
 
     daily_activities = []
-
     if focus in ("مفردات", "كل حاجة"):
         daily_activities.append("15-20 دقيقة: حفظ ومراجعة كلمات جديدة")
     if focus in ("قواعد", "كل حاجة"):
@@ -37,19 +33,16 @@ def build_schedule(level: str, hours: str, focus: str) -> str:
         daily_activities.append("10-15 دقيقة: تدريب على المحادثة (مع نفسك أو تطبيق)")
     if focus in ("استماع", "كل حاجة"):
         daily_activities.append("10-15 دقيقة: سماع فيديو/بودكاست قصير بالإنجليزي")
-
     if not daily_activities:
         daily_activities = ["مراجعة عامة شاملة"]
 
     lines = []
-    lines.append(f"## 📅 خطة تعلم الإنجليزية لمدة 30 يوم")
+    lines.append("## 📅 خطة تعلم الإنجليزية لمدة 30 يوم")
     lines.append(f"**المستوى:** {level}  |  **الوقت المتاح يوميًا:** {hours_num} ساعة  |  **التركيز:** {focus}\n")
-
     lines.append("### الأنشطة اليومية الثابتة:")
     for act in daily_activities:
         lines.append(f"- {act}")
     lines.append("")
-
     lines.append("### جدول تفصيلي أسبوعي:")
     for week in range(1, 5):
         lines.append(f"\n**الأسبوع {week}:**")
@@ -74,63 +67,45 @@ def build_schedule(level: str, hours: str, focus: str) -> str:
     lines.append("- حاول تلتزم بنفس الميعاد كل يوم عشان تتعود.")
     lines.append("- اكتب جملة أو اتنين بالكلمات الجديدة كل يوم.")
     lines.append("- في آخر كل أسبوع، اختبر نفسك من غير ما تشوف الملاحظات.")
-
     return "\n".join(lines)
 
 
-# ---------------------------------------------------------
-# منطق البوت الحواري (بيسأل 3 أسئلة وبعدين يطلع الجدول)
-# ---------------------------------------------------------
+st.title("🎓 بوت جدول تعلم الإنجليزية")
+st.write("بوت بسيط بيسألك 3 أسئلة وبيطلعلك جدول تعلم إنجليزي لمدة شهر كامل.")
 
-def chatbot_response(message, history):
-    # نحسب هو في أي مرحلة بناءً على عدد الردود اللي فاتت
-    step = len(history)
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+    st.session_state.step = 0
+    st.session_state.messages.append(
+        {"role": "assistant", "content": "أهلاً بيك! 👋 هساعدك تعمل جدول لتعلم الإنجليزية في شهر.\n\nإيه مستواك الحالي؟ (اكتب: مبتدئ / متوسط / متقدم)"}
+    )
+
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
+
+user_input = st.chat_input("اكتب هنا...")
+
+if user_input:
+    st.session_state.messages.append({"role": "user", "content": user_input})
+
+    step = st.session_state.step
 
     if step == 0:
-        return "أهلاً بيك! 👋 هساعدك تعمل جدول لتعلم الإنجليزية في شهر.\n\nإيه مستواك الحالي؟ (اكتب: مبتدئ / متوسط / متقدم)"
-
-    if step == 1:
-        return "تمام 👍\nكام ساعة تقريبًا تقدر تخصص للمذاكرة كل يوم؟ (اكتب رقم مثلاً: 1 أو 0.5)"
-
-    if step == 2:
+        st.session_state.level = user_input.strip()
+        reply = "تمام 👍\nكام ساعة تقريبًا تقدر تخصص للمذاكرة كل يوم؟ (اكتب رقم مثلاً: 1 أو 0.5)"
+    elif step == 1:
+        st.session_state.hours = user_input.strip()
         options = " / ".join(FOCUS_OPTIONS)
-        return f"جميل! وعايز تركز على إيه أكتر؟\nاختار من: {options}"
+        reply = f"جميل! وعايز تركز على إيه أكتر؟\nاختار من: {options}"
+    elif step == 2:
+        focus = user_input.strip() if user_input.strip() in FOCUS_OPTIONS else "كل حاجة"
+        reply = build_schedule(st.session_state.level, st.session_state.hours, focus)
+        reply += "\n\nلو عايز جدول جديد، اكتب أي حاجة وهبدأ معاك من الأول 🔁"
+    else:
+        st.session_state.step = -1
+        reply = "خلينا نبدأ جدول جديد 🎯\nإيه مستواك الحالي؟ (مبتدئ / متوسط / متقدم)"
 
-    if step == 3:
-        # نجمع الإجابات من الهيستوري
-        level = history[0][1] if False else None
-        try:
-            level_msg = history[0][0].strip()
-        except Exception:
-            level_msg = "مبتدئ"
-        try:
-            hours_msg = history[1][0].strip()
-        except Exception:
-            hours_msg = "1"
-        focus_msg = message.strip()
-
-        # نتأكد إن القيم منطقية، ولو مش موجودة في القوائم نسيبها زي ما هي
-        level = level_msg if level_msg in LEVELS else level_msg
-        focus = focus_msg if focus_msg in FOCUS_OPTIONS else "كل حاجة"
-
-        schedule = build_schedule(level, hours_msg, focus)
-        return schedule + "\n\nلو عايز جدول جديد بمواصفات مختلفة، اكتب أي حاجة وهبدأ معاك من الأول 🔁"
-
-    # لو المحادثة كملت، نبدأ من جديد
-    return "خلينا نبدأ جدول جديد 🎯\nإيه مستواك الحالي؟ (مبتدئ / متوسط / متقدم)"
-
-
-# ---------------------------------------------------------
-# واجهة Gradio
-# ---------------------------------------------------------
-
-demo = gr.ChatInterface(
-    fn=chatbot_response,
-    title="🎓 بوت جدول تعلم الإنجليزية",
-    description="بوت بسيط بيسألك 3 أسئلة وبيطلعلك جدول تعلم إنجليزي لمدة شهر كامل.",
-    examples=["مبتدئ", "متوسط", "متقدم"],
-    theme="soft",
-)
-
-if __name__ == "__main__":
-   demo.launch(server_name="0.0.0.0", server_port=int(os.environ.get("PORT", 7860)))
+    st.session_state.step += 1
+    st.session_state.messages.append({"role": "assistant", "content": reply})
+    st.rerun()
